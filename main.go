@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -140,10 +141,24 @@ func fetchUrl(file string) {
 	}
 	defer readFile.Close()
 
+	resultCh := make(chan result)
+	wg := sync.WaitGroup{}
 	scanner := bufio.NewScanner(readFile)
 	for scanner.Scan() {
 		url := scanner.Text()
-		scanPrint(reqScan(url))
+		wg.Add(1)
+		go func(u string) {
+			resultCh <- reqScan(u)
+			wg.Done()
+		}(url)
+	}
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	for req := range resultCh {
+		scanPrint(req)
 	}
 }
 
